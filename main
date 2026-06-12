@@ -1,0 +1,2142 @@
+-- Simple UI + Noclip + Instant ProximityPrompt + Fly + Visual ESP by cihuy
+-- Optimized version: ESP/Combat loop dibuat tidak scan setiap frame supaya lebih ringan
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+
+local player = Players.LocalPlayer
+
+if CoreGui:FindFirstChild("CihuyUI") then
+    CoreGui.CihuyUI:Destroy()
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "CihuyUI"
+gui.ResetOnSpawn = false
+gui.Parent = CoreGui
+
+local function makeCorner(obj, radius)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 8)
+    corner.Parent = obj
+    return corner
+end
+
+local function makeButton(parent, name, text, pos)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = UDim2.new(0, 180, 0, 34)
+    button.Position = pos
+    button.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 12
+    button.Font = Enum.Font.GothamBold
+    button.Parent = parent
+    makeCorner(button, 8)
+    return button
+end
+
+local function setButtonState(button, text, state)
+    button.Text = text
+    button.BackgroundColor3 = state and Color3.fromRGB(50, 170, 80) or Color3.fromRGB(170, 50, 50)
+end
+
+-- Home Frame
+local homeFrame = Instance.new("Frame")
+homeFrame.Name = "HomeFrame"
+homeFrame.Size = UDim2.new(0, 330, 0, 210)
+homeFrame.Position = UDim2.new(0.5, -165, 0.5, -105)
+homeFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+homeFrame.BorderSizePixel = 0
+homeFrame.Parent = gui
+makeCorner(homeFrame, 12)
+
+local credit = Instance.new("TextLabel")
+credit.Name = "Credit"
+credit.Size = UDim2.new(0, 200, 0, 35)
+credit.Position = UDim2.new(0, 10, 0, 8)
+credit.BackgroundTransparency = 1
+credit.Text = "Credit cihuy"
+credit.TextColor3 = Color3.fromRGB(255, 255, 255)
+credit.TextSize = 15
+credit.Font = Enum.Font.GothamBold
+credit.TextXAlignment = Enum.TextXAlignment.Left
+credit.Parent = homeFrame
+
+local openButton = Instance.new("TextButton")
+openButton.Name = "OpenButton"
+openButton.Size = UDim2.new(0, 125, 0, 44)
+openButton.Position = UDim2.new(0.5, -62, 0.5, -22)
+openButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+openButton.Text = "Open"
+openButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+openButton.TextSize = 20
+openButton.Font = Enum.Font.GothamBold
+openButton.Parent = homeFrame
+makeCorner(openButton, 10)
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 410, 0, 650)
+mainFrame.Position = UDim2.new(0.5, -205, 0.5, -325)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = false
+mainFrame.Parent = gui
+makeCorner(mainFrame, 12)
+
+local function isPressInput(input)
+    return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function isMoveInput(input)
+    return input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function centerMainFrame()
+    mainFrame.Position = UDim2.new(0.5, -mainFrame.Size.X.Offset / 2, 0.5, -mainFrame.Size.Y.Offset / 2)
+end
+
+local function fitForSmallScreen()
+    local cam = Workspace.CurrentCamera
+    if not cam then return end
+
+    local viewport = cam.ViewportSize
+    local targetScale = math.min(1, (viewport.X - 20) / mainFrame.Size.X.Offset, (viewport.Y - 20) / mainFrame.Size.Y.Offset)
+
+    if targetScale < 1 then
+        local scale = mainFrame:FindFirstChild("MobileScale")
+        if not scale then
+            scale = Instance.new("UIScale")
+            scale.Name = "MobileScale"
+            scale.Parent = mainFrame
+        end
+        scale.Scale = math.max(0.72, targetScale)
+    else
+        local scale = mainFrame:FindFirstChild("MobileScale")
+        if scale then
+            scale.Scale = 1
+        end
+    end
+end
+
+fitForSmallScreen()
+centerMainFrame()
+
+if Workspace.CurrentCamera then
+    Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        fitForSmallScreen()
+    end)
+end
+
+-- Draggable
+local dragging = false
+local dragInput = nil
+local dragStart = nil
+local startPos = nil
+
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(
+        startPos.X.Scale,
+        startPos.X.Offset + delta.X,
+        startPos.Y.Scale,
+        startPos.Y.Offset + delta.Y
+    )
+end
+
+mainFrame.InputBegan:Connect(function(input)
+    if isPressInput(input) then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if isMoveInput(input) then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        updateDrag(input)
+    end
+end)
+
+local mainCredit = Instance.new("TextLabel")
+mainCredit.Name = "MainCredit"
+mainCredit.Size = UDim2.new(0, 200, 0, 35)
+mainCredit.Position = UDim2.new(0, 10, 0, 8)
+mainCredit.BackgroundTransparency = 1
+mainCredit.Text = "Credit cihuy"
+mainCredit.TextColor3 = Color3.fromRGB(200, 200, 200)
+mainCredit.TextSize = 13
+mainCredit.Font = Enum.Font.Gotham
+mainCredit.TextXAlignment = Enum.TextXAlignment.Left
+mainCredit.Parent = mainFrame
+
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Size = UDim2.new(1, 0, 0, 42)
+title.Position = UDim2.new(0, 0, 0, 8)
+title.BackgroundTransparency = 1
+title.Text = "Main Script"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 22
+title.Font = Enum.Font.GothamBold
+title.Parent = mainFrame
+
+local featureFrame = Instance.new("Frame")
+featureFrame.Name = "FeatureFrame"
+featureFrame.Size = UDim2.new(1, -26, 0, 585)
+featureFrame.Position = UDim2.new(0, 13, 0, 55)
+featureFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+featureFrame.BorderSizePixel = 0
+featureFrame.Parent = mainFrame
+makeCorner(featureFrame, 10)
+
+local miscTitle = Instance.new("TextLabel")
+miscTitle.Name = "MiscTitle"
+miscTitle.Size = UDim2.new(1, -20, 0, 35)
+miscTitle.Position = UDim2.new(0, 10, 0, 8)
+miscTitle.BackgroundTransparency = 1
+miscTitle.Text = "Misc"
+miscTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+miscTitle.TextSize = 17
+miscTitle.Font = Enum.Font.GothamBold
+miscTitle.TextXAlignment = Enum.TextXAlignment.Left
+miscTitle.Parent = featureFrame
+
+local noclipButton = makeButton(featureFrame, "NoclipButton", "Noclip: OFF", UDim2.new(0, 8, 0, 42))
+local promptButton = makeButton(featureFrame, "PromptButton", "Instant Interact: OFF", UDim2.new(0, 8, 0, 82))
+local flyButton = makeButton(featureFrame, "FlyButton", "Fly: OFF", UDim2.new(0, 8, 0, 122))
+
+local noclipWarning = Instance.new("TextLabel")
+noclipWarning.Name = "NoclipWarning"
+noclipWarning.Size = UDim2.new(0, 185, 0, 35)
+noclipWarning.Position = UDim2.new(0, 198, 0, 42)
+noclipWarning.BackgroundTransparency = 1
+noclipWarning.Text = "You might be fall into the void"
+noclipWarning.TextColor3 = Color3.fromRGB(255, 180, 80)
+noclipWarning.TextSize = 11
+noclipWarning.Font = Enum.Font.Gotham
+noclipWarning.TextXAlignment = Enum.TextXAlignment.Left
+noclipWarning.TextWrapped = true
+noclipWarning.Parent = featureFrame
+
+-- Fly Slider
+local speedText = Instance.new("TextLabel")
+speedText.Name = "SpeedText"
+speedText.Size = UDim2.new(0, 180, 0, 20)
+speedText.Position = UDim2.new(0, 198, 0, 122)
+speedText.BackgroundTransparency = 1
+speedText.Text = "Fly Speed: 50"
+speedText.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedText.TextSize = 12
+speedText.Font = Enum.Font.GothamBold
+speedText.TextXAlignment = Enum.TextXAlignment.Left
+speedText.Parent = featureFrame
+
+local sliderBack = Instance.new("Frame")
+sliderBack.Name = "SliderBack"
+sliderBack.Size = UDim2.new(0, 180, 0, 7)
+sliderBack.Position = UDim2.new(0, 198, 0, 152)
+sliderBack.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+sliderBack.BorderSizePixel = 0
+sliderBack.Parent = featureFrame
+makeCorner(sliderBack, 99)
+
+local sliderFill = Instance.new("Frame")
+sliderFill.Name = "SliderFill"
+sliderFill.Size = UDim2.new(50 / 200, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+sliderFill.BorderSizePixel = 0
+sliderFill.Parent = sliderBack
+makeCorner(sliderFill, 99)
+
+local sliderKnob = Instance.new("TextButton")
+sliderKnob.Name = "SliderKnob"
+sliderKnob.Size = UDim2.new(0, 16, 0, 16)
+sliderKnob.Position = UDim2.new(50 / 200, -8, 0.5, -8)
+sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+sliderKnob.Text = ""
+sliderKnob.BorderSizePixel = 0
+sliderKnob.Parent = sliderBack
+makeCorner(sliderKnob, 99)
+
+-- Mobile Fly Controls (untuk HP / analog)
+local MobileFlyUp = false
+local MobileFlyDown = false
+
+local mobileFlyFrame = Instance.new("Frame")
+mobileFlyFrame.Name = "MobileFlyFrame"
+mobileFlyFrame.Size = UDim2.new(0, 95, 0, 95)
+mobileFlyFrame.Position = UDim2.new(1, -110, 1, -125)
+mobileFlyFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+mobileFlyFrame.BackgroundTransparency = 0.15
+mobileFlyFrame.BorderSizePixel = 0
+mobileFlyFrame.Visible = false
+mobileFlyFrame.Parent = gui
+makeCorner(mobileFlyFrame, 12)
+
+local mobileUpButton = Instance.new("TextButton")
+mobileUpButton.Name = "MobileFlyUp"
+mobileUpButton.Size = UDim2.new(0, 75, 0, 35)
+mobileUpButton.Position = UDim2.new(0.5, -37, 0, 8)
+mobileUpButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+mobileUpButton.Text = "UP"
+mobileUpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+mobileUpButton.TextSize = 13
+mobileUpButton.Font = Enum.Font.GothamBold
+mobileUpButton.Parent = mobileFlyFrame
+makeCorner(mobileUpButton, 8)
+
+local mobileDownButton = Instance.new("TextButton")
+mobileDownButton.Name = "MobileFlyDown"
+mobileDownButton.Size = UDim2.new(0, 75, 0, 35)
+mobileDownButton.Position = UDim2.new(0.5, -37, 0, 52)
+mobileDownButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+mobileDownButton.Text = "DOWN"
+mobileDownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+mobileDownButton.TextSize = 13
+mobileDownButton.Font = Enum.Font.GothamBold
+mobileDownButton.Parent = mobileFlyFrame
+makeCorner(mobileDownButton, 8)
+
+local function bindHoldButton(button, setFunc)
+    button.InputBegan:Connect(function(input)
+        if isPressInput(input) then
+            setFunc(true)
+        end
+    end)
+
+    button.InputEnded:Connect(function(input)
+        if isPressInput(input) then
+            setFunc(false)
+        end
+    end)
+end
+
+bindHoldButton(mobileUpButton, function(state)
+    MobileFlyUp = state
+end)
+
+bindHoldButton(mobileDownButton, function(state)
+    MobileFlyDown = state
+end)
+
+-- Visual Category
+local visualTitle = Instance.new("TextLabel")
+visualTitle.Name = "VisualTitle"
+visualTitle.Size = UDim2.new(1, -20, 0, 35)
+visualTitle.Position = UDim2.new(0, 8, 0, 180)
+visualTitle.BackgroundTransparency = 1
+visualTitle.Text = "Visual"
+visualTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+visualTitle.TextSize = 17
+visualTitle.Font = Enum.Font.GothamBold
+visualTitle.TextXAlignment = Enum.TextXAlignment.Left
+visualTitle.Parent = featureFrame
+
+local skeletonButton = makeButton(featureFrame, "SkeletonButton", "Skeleton ESP: OFF", UDim2.new(0, 8, 0, 215))
+local healthButton = makeButton(featureFrame, "HealthButton", "Health ESP: OFF", UDim2.new(0, 198, 0, 215))
+local nameButton = makeButton(featureFrame, "NameButton", "Name ESP: OFF", UDim2.new(0, 8, 0, 255))
+local chestButton = makeButton(featureFrame, "ChestButton", "Chest ESP: OFF", UDim2.new(0, 198, 0, 255))
+local fullBrightButton = makeButton(featureFrame, "FullBrightButton", "Full Bright: OFF", UDim2.new(0, 8, 0, 295))
+local noFogButton = makeButton(featureFrame, "NoFogButton", "No Fog: OFF", UDim2.new(0, 198, 0, 295))
+
+-- Chest Stud Slider
+local chestStudText = Instance.new("TextLabel")
+chestStudText.Name = "ChestStudText"
+chestStudText.Size = UDim2.new(0, 180, 0, 20)
+chestStudText.Position = UDim2.new(0, 8, 0, 360)
+chestStudText.BackgroundTransparency = 1
+chestStudText.Text = "Chest Stud: 1000"
+chestStudText.TextColor3 = Color3.fromRGB(255, 255, 255)
+chestStudText.TextSize = 12
+chestStudText.Font = Enum.Font.GothamBold
+chestStudText.TextXAlignment = Enum.TextXAlignment.Left
+chestStudText.Parent = featureFrame
+
+local chestSliderBack = Instance.new("Frame")
+chestSliderBack.Name = "ChestSliderBack"
+chestSliderBack.Size = UDim2.new(0, 370, 0, 7)
+chestSliderBack.Position = UDim2.new(0, 8, 0, 342)
+chestSliderBack.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+chestSliderBack.BorderSizePixel = 0
+chestSliderBack.Parent = featureFrame
+makeCorner(chestSliderBack, 99)
+
+local chestSliderFill = Instance.new("Frame")
+chestSliderFill.Name = "ChestSliderFill"
+chestSliderFill.Size = UDim2.new(1, 0, 1, 0)
+chestSliderFill.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+chestSliderFill.BorderSizePixel = 0
+chestSliderFill.Parent = chestSliderBack
+makeCorner(chestSliderFill, 99)
+
+local chestSliderKnob = Instance.new("TextButton")
+chestSliderKnob.Name = "ChestSliderKnob"
+chestSliderKnob.Size = UDim2.new(0, 16, 0, 16)
+chestSliderKnob.Position = UDim2.new(1, -8, 0.5, -8)
+chestSliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+chestSliderKnob.Text = ""
+chestSliderKnob.BorderSizePixel = 0
+chestSliderKnob.Parent = chestSliderBack
+makeCorner(chestSliderKnob, 99)
+
+
+-- Combat Category
+local combatTitle = Instance.new("TextLabel")
+combatTitle.Name = "CombatTitle"
+combatTitle.Size = UDim2.new(1, -20, 0, 35)
+combatTitle.Position = UDim2.new(0, 8, 0, 390)
+combatTitle.BackgroundTransparency = 1
+combatTitle.Text = "Combat"
+combatTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+combatTitle.TextSize = 17
+combatTitle.Font = Enum.Font.GothamBold
+combatTitle.TextXAlignment = Enum.TextXAlignment.Left
+combatTitle.Parent = featureFrame
+
+local autoKillButton = makeButton(featureFrame, "AutoKillButton", "Auto Kill Closest: OFF", UDim2.new(0, 8, 0, 425))
+
+local combatRadiusText = Instance.new("TextLabel")
+combatRadiusText.Name = "CombatRadiusText"
+combatRadiusText.Size = UDim2.new(0, 180, 0, 20)
+combatRadiusText.Position = UDim2.new(0, 198, 0, 425)
+combatRadiusText.BackgroundTransparency = 1
+combatRadiusText.Text = "Kill Radius: 7"
+combatRadiusText.TextColor3 = Color3.fromRGB(255, 255, 255)
+combatRadiusText.TextSize = 12
+combatRadiusText.Font = Enum.Font.GothamBold
+combatRadiusText.TextXAlignment = Enum.TextXAlignment.Left
+combatRadiusText.Parent = featureFrame
+
+local combatSliderBack = Instance.new("Frame")
+combatSliderBack.Name = "CombatSliderBack"
+combatSliderBack.Size = UDim2.new(0, 180, 0, 7)
+combatSliderBack.Position = UDim2.new(0, 198, 0, 455)
+combatSliderBack.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+combatSliderBack.BorderSizePixel = 0
+combatSliderBack.Parent = featureFrame
+makeCorner(combatSliderBack, 99)
+
+local combatSliderFill = Instance.new("Frame")
+combatSliderFill.Name = "CombatSliderFill"
+combatSliderFill.Size = UDim2.new(7 / 500, 0, 1, 0)
+combatSliderFill.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+combatSliderFill.BorderSizePixel = 0
+combatSliderFill.Parent = combatSliderBack
+makeCorner(combatSliderFill, 99)
+
+local combatSliderKnob = Instance.new("TextButton")
+combatSliderKnob.Name = "CombatSliderKnob"
+combatSliderKnob.Size = UDim2.new(0, 16, 0, 16)
+combatSliderKnob.Position = UDim2.new(7 / 500, -8, 0.5, -8)
+combatSliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+combatSliderKnob.Text = ""
+combatSliderKnob.BorderSizePixel = 0
+combatSliderKnob.Parent = combatSliderBack
+makeCorner(combatSliderKnob, 99)
+
+-- Teleport Category
+local teleportTitle = Instance.new("TextLabel")
+teleportTitle.Name = "TeleportTitle"
+teleportTitle.Size = UDim2.new(1, -20, 0, 35)
+teleportTitle.Position = UDim2.new(0, 8, 0, 482)
+teleportTitle.BackgroundTransparency = 1
+teleportTitle.Text = "Teleport"
+teleportTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportTitle.TextSize = 17
+teleportTitle.Font = Enum.Font.GothamBold
+teleportTitle.TextXAlignment = Enum.TextXAlignment.Left
+teleportTitle.Parent = featureFrame
+
+local tpChestButton = makeButton(featureFrame, "TPChestButton", "TP to Chest", UDim2.new(0, 8, 0, 515))
+local tpRaftButton = makeButton(featureFrame, "TPRaftButton", "TP to Raft", UDim2.new(0, 198, 0, 515))
+local doubloonsChestButton = makeButton(featureFrame, "DoubloonsChestButton", "Doubloons Chest", UDim2.new(0, 8, 0, 555))
+doubloonsChestButton.Size = UDim2.new(0, 180, 0, 28)
+
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 72, 0, 28)
+closeButton.Position = UDim2.new(1, -84, 0, 10)
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeButton.Text = "Hide"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 13
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = mainFrame
+makeCorner(closeButton, 8)
+
+-- Small draggable Open button shown after Hide
+local miniOpenButton = Instance.new("TextButton")
+miniOpenButton.Name = "MiniOpenButton"
+miniOpenButton.Size = UDim2.new(0, 62, 0, 30)
+miniOpenButton.Position = UDim2.new(0.5, -31, 1, -44)
+miniOpenButton.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+miniOpenButton.Text = "Open"
+miniOpenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+miniOpenButton.TextSize = 12
+miniOpenButton.Font = Enum.Font.GothamBold
+miniOpenButton.Visible = false
+miniOpenButton.Parent = gui
+makeCorner(miniOpenButton, 99)
+
+local miniDragging = false
+local miniDragInput = nil
+local miniDragStart = nil
+local miniStartPos = nil
+local miniMoved = false
+
+local function updateMiniDrag(input)
+    local delta = input.Position - miniDragStart
+    if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then
+        miniMoved = true
+    end
+
+    miniOpenButton.Position = UDim2.new(
+        miniStartPos.X.Scale,
+        miniStartPos.X.Offset + delta.X,
+        miniStartPos.Y.Scale,
+        miniStartPos.Y.Offset + delta.Y
+    )
+end
+
+miniOpenButton.InputBegan:Connect(function(input)
+    if isPressInput(input) then
+        miniDragging = true
+        miniMoved = false
+        miniDragStart = input.Position
+        miniStartPos = miniOpenButton.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                miniDragging = false
+            end
+        end)
+    end
+end)
+
+miniOpenButton.InputChanged:Connect(function(input)
+    if isMoveInput(input) then
+        miniDragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == miniDragInput and miniDragging then
+        updateMiniDrag(input)
+    end
+end)
+
+-- Helpers
+local function getRoot()
+    local character = player.Character
+    if not character then return nil end
+    return character:FindFirstChild("HumanoidRootPart")
+end
+
+local function getHumanoid()
+    local character = player.Character
+    if not character then return nil end
+    return character:FindFirstChildOfClass("Humanoid")
+end
+
+local function isNPC(model)
+    if not model or not model:IsA("Model") then return false end
+
+    local humanoid = model:FindFirstChildOfClass("Humanoid")
+    local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso") or model:FindFirstChild("UpperTorso")
+
+    if not humanoid or not root then return false end
+    if Players:GetPlayerFromCharacter(model) then return false end
+    if player.Character and model == player.Character then return false end
+
+    return true
+end
+
+-- Performance cache: jangan scan Workspace:GetDescendants() setiap frame
+local NPC_CACHE = {}
+local LAST_NPC_SCAN = 0
+local NPC_SCAN_INTERVAL = 1.25
+
+local function refreshNPCCache()
+    NPC_CACHE = {}
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and isNPC(obj) then
+            table.insert(NPC_CACHE, obj)
+        end
+    end
+
+    LAST_NPC_SCAN = tick()
+end
+
+local function getAllNPCs(forceRefresh)
+    if forceRefresh or tick() - LAST_NPC_SCAN >= NPC_SCAN_INTERVAL then
+        refreshNPCCache()
+    end
+
+    return NPC_CACHE
+end
+
+local function getPart(model, ...)
+    local names = {...}
+
+    for _, name in ipairs(names) do
+        local part = model:FindFirstChild(name)
+        if part and part:IsA("BasePart") then
+            return part
+        end
+    end
+
+    return nil
+end
+
+local function getNPCHead(model)
+    return getPart(model, "Head")
+        or getPart(model, "HumanoidRootPart")
+        or getPart(model, "Torso")
+        or getPart(model, "UpperTorso")
+end
+
+local function getAdorneeFromPrompt(prompt)
+    local parent = prompt.Parent
+
+    if parent and parent:IsA("BasePart") then
+        return parent
+    end
+
+    local model = parent and parent:FindFirstAncestorOfClass("Model")
+    if model then
+        if model.PrimaryPart then
+            return model.PrimaryPart
+        end
+
+        local part = model:FindFirstChildWhichIsA("BasePart", true)
+        if part then
+            return part
+        end
+    end
+
+    return nil
+end
+
+local function isOpenChestPrompt(prompt)
+    if not prompt:IsA("ProximityPrompt") then
+        return false
+    end
+
+    local action = string.lower(prompt.ActionText or "")
+    local object = string.lower(prompt.ObjectText or "")
+    local name = string.lower(prompt.Name or "")
+
+    return action == "open chest"
+        or object == "open chest"
+        or name == "open chest"
+        or string.find(action, "open chest") ~= nil
+        or string.find(object, "open chest") ~= nil
+        or string.find(name, "open chest") ~= nil
+end
+
+-- Noclip
+local NoclipConnection = nil
+local NoclipEnabled = false
+
+local function noclip()
+    NoclipEnabled = true
+
+    if NoclipConnection then
+        NoclipConnection:Disconnect()
+        NoclipConnection = nil
+    end
+
+    NoclipConnection = RunService.Stepped:Connect(function()
+        local character = player.Character
+
+        if NoclipEnabled and character then
+            for _, v in pairs(character:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+local function clip()
+    NoclipEnabled = false
+
+    if NoclipConnection then
+        NoclipConnection:Disconnect()
+        NoclipConnection = nil
+    end
+
+    local character = player.Character
+    if character then
+        for _, v in pairs(character:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanCollide = true
+            end
+        end
+    end
+end
+
+-- Instant Interact
+local PromptEnabled = false
+local PromptConnection = nil
+local SavedPrompts = {}
+
+local function savePrompt(prompt)
+    if prompt:IsA("ProximityPrompt") and not SavedPrompts[prompt] then
+        SavedPrompts[prompt] = {
+            HoldDuration = prompt.HoldDuration
+        }
+    end
+end
+
+local function applyInstantPrompt(prompt)
+    if prompt:IsA("ProximityPrompt") then
+        savePrompt(prompt)
+        prompt.HoldDuration = 0
+    end
+end
+
+local function enableInstantPrompt()
+    PromptEnabled = true
+
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            applyInstantPrompt(v)
+        end
+    end
+
+    if PromptConnection then
+        PromptConnection:Disconnect()
+        PromptConnection = nil
+    end
+
+    PromptConnection = Workspace.DescendantAdded:Connect(function(v)
+        if PromptEnabled and v:IsA("ProximityPrompt") then
+            task.wait(0.1)
+            applyInstantPrompt(v)
+        end
+    end)
+end
+
+local function disableInstantPrompt()
+    PromptEnabled = false
+
+    if PromptConnection then
+        PromptConnection:Disconnect()
+        PromptConnection = nil
+    end
+
+    for prompt, data in pairs(SavedPrompts) do
+        if prompt and prompt.Parent then
+            prompt.HoldDuration = data.HoldDuration
+        end
+    end
+end
+
+-- Fly
+local FlyEnabled = false
+local FlySpeed = 50
+local FlyConnection = nil
+local BodyVelocity = nil
+local BodyGyro = nil
+
+local flyingKeys = {
+    W = false,
+    A = false,
+    S = false,
+    D = false,
+    Space = false,
+    LeftControl = false
+}
+
+local function startFly()
+    FlyEnabled = true
+
+    local root = getRoot()
+    local humanoid = getHumanoid()
+
+    if not root or not humanoid then
+        return
+    end
+
+    humanoid.PlatformStand = true
+
+    if mobileFlyFrame then
+        mobileFlyFrame.Visible = UserInputService.TouchEnabled
+    end
+
+    if BodyVelocity then BodyVelocity:Destroy() end
+    if BodyGyro then BodyGyro:Destroy() end
+
+    BodyVelocity = Instance.new("BodyVelocity")
+    BodyVelocity.Name = "CihuyFlyVelocity"
+    BodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    BodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    BodyVelocity.Parent = root
+
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.Name = "CihuyFlyGyro"
+    BodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    BodyGyro.P = 9000
+    BodyGyro.CFrame = root.CFrame
+    BodyGyro.Parent = root
+
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+
+    FlyConnection = RunService.RenderStepped:Connect(function()
+        local currentRoot = getRoot()
+        local currentHumanoid = getHumanoid()
+        local cam = Workspace.CurrentCamera
+
+        if not FlyEnabled or not currentRoot or not currentHumanoid or not cam then
+            return
+        end
+
+        currentHumanoid.PlatformStand = true
+
+        local moveDirection = Vector3.new(0, 0, 0)
+
+        -- PC keyboard movement
+        if flyingKeys.W then moveDirection = moveDirection + cam.CFrame.LookVector end
+        if flyingKeys.S then moveDirection = moveDirection - cam.CFrame.LookVector end
+        if flyingKeys.A then moveDirection = moveDirection - cam.CFrame.RightVector end
+        if flyingKeys.D then moveDirection = moveDirection + cam.CFrame.RightVector end
+        if flyingKeys.Space then moveDirection = moveDirection + Vector3.new(0, 1, 0) end
+        if flyingKeys.LeftControl then moveDirection = moveDirection - Vector3.new(0, 1, 0) end
+
+        -- Mobile analog movement
+        -- Humanoid.MoveDirection otomatis membaca analog HP, jadi fly bisa maju/mundur/kiri/kanan lewat analog.
+        if currentHumanoid.MoveDirection.Magnitude > 0 then
+            moveDirection = moveDirection + currentHumanoid.MoveDirection
+        end
+
+        -- Mobile vertical movement pakai tombol UP / DOWN kecil.
+        if MobileFlyUp then moveDirection = moveDirection + Vector3.new(0, 1, 0) end
+        if MobileFlyDown then moveDirection = moveDirection - Vector3.new(0, 1, 0) end
+
+        if moveDirection.Magnitude > 0 then
+            moveDirection = moveDirection.Unit * FlySpeed
+        end
+
+        if BodyVelocity then
+            BodyVelocity.Velocity = moveDirection
+        end
+
+        if BodyGyro then
+            BodyGyro.CFrame = cam.CFrame
+        end
+    end)
+end
+
+local function stopFly()
+    FlyEnabled = false
+    MobileFlyUp = false
+    MobileFlyDown = false
+
+    if mobileFlyFrame then
+        mobileFlyFrame.Visible = false
+    end
+
+    if FlyConnection then
+        FlyConnection:Disconnect()
+        FlyConnection = nil
+    end
+
+    if BodyVelocity then
+        BodyVelocity:Destroy()
+        BodyVelocity = nil
+    end
+
+    if BodyGyro then
+        BodyGyro:Destroy()
+        BodyGyro = nil
+    end
+
+    local humanoid = getHumanoid()
+    if humanoid then
+        humanoid.PlatformStand = false
+    end
+end
+
+-- Name + Health ESP
+local NameESPEnabled = false
+local HealthESPEnabled = false
+local BillboardConnection = nil
+local BillboardLoopRunning = false
+local BillboardESPs = {}
+
+local function createNPCBillboard(model)
+    if BillboardESPs[model] then
+        return BillboardESPs[model]
+    end
+
+    local head = getNPCHead(model)
+    if not head then return nil end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "CihuyNPCESP"
+    billboard.Adornee = head
+    billboard.Size = UDim2.new(0, 200, 0, 60)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = CoreGui
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "NameLabel"
+    nameLabel.Size = UDim2.new(1, 0, 0, 25)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = model.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextSize = 14
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.Visible = false
+    nameLabel.Parent = billboard
+
+    local healthLabel = Instance.new("TextLabel")
+    healthLabel.Name = "HealthLabel"
+    healthLabel.Size = UDim2.new(1, 0, 0, 25)
+    healthLabel.Position = UDim2.new(0, 0, 0, 22)
+    healthLabel.BackgroundTransparency = 1
+    healthLabel.Text = "HP: ?"
+    healthLabel.TextColor3 = Color3.fromRGB(80, 255, 120)
+    healthLabel.TextStrokeTransparency = 0
+    healthLabel.TextSize = 14
+    healthLabel.Font = Enum.Font.GothamBold
+    healthLabel.Visible = false
+    healthLabel.Parent = billboard
+
+    BillboardESPs[model] = billboard
+    return billboard
+end
+
+local function clearBillboardESPs()
+    for _, billboard in pairs(BillboardESPs) do
+        if billboard then
+            billboard:Destroy()
+        end
+    end
+    BillboardESPs = {}
+end
+
+local function updateBillboardESP()
+    for _, npc in ipairs(getAllNPCs()) do
+        local humanoid = npc:FindFirstChildOfClass("Humanoid")
+        local billboard = createNPCBillboard(npc)
+
+        if billboard and humanoid then
+            local nameLabel = billboard:FindFirstChild("NameLabel")
+            local healthLabel = billboard:FindFirstChild("HealthLabel")
+
+            if nameLabel then
+                nameLabel.Text = npc.Name
+                nameLabel.Visible = NameESPEnabled
+            end
+
+            if healthLabel then
+                healthLabel.Text = "HP: " .. math.floor(humanoid.Health) .. " / " .. math.floor(humanoid.MaxHealth)
+                healthLabel.Visible = HealthESPEnabled
+            end
+
+            billboard.Enabled = NameESPEnabled or HealthESPEnabled
+        end
+    end
+
+    for model, billboard in pairs(BillboardESPs) do
+        if not model or not model.Parent or not isNPC(model) then
+            if billboard then billboard:Destroy() end
+            BillboardESPs[model] = nil
+        end
+    end
+end
+
+local function startBillboardLoop()
+    if BillboardLoopRunning then
+        return
+    end
+
+    BillboardLoopRunning = true
+
+    task.spawn(function()
+        while NameESPEnabled or HealthESPEnabled do
+            updateBillboardESP()
+            task.wait(0.35)
+        end
+
+        BillboardLoopRunning = false
+    end)
+end
+
+local function stopBillboardLoopIfUnused()
+    if not NameESPEnabled and not HealthESPEnabled then
+        if BillboardConnection then
+            BillboardConnection:Disconnect()
+            BillboardConnection = nil
+        end
+        clearBillboardESPs()
+    end
+end
+
+-- Chest ESP
+local ChestESPEnabled = false
+local ChestESPMaxStud = 1000
+local ChestConnection = nil
+local ChestESPs = {}
+local ChestPromptCache = {}
+local LastChestPromptScan = 0
+local ChestPromptScanInterval = 1.5
+
+local function getDistanceFromPlayer(part)
+    local root = getRoot()
+    if not root or not part then
+        return math.huge
+    end
+    return (part.Position - root.Position).Magnitude
+end
+
+local function createChestESP(prompt)
+    local adornee = getAdorneeFromPrompt(prompt)
+    if not adornee then return end
+
+    if ChestESPs[prompt] then
+        return
+    end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "CihuyChestESP"
+    billboard.Adornee = adornee
+    billboard.Size = UDim2.new(0, 140, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = CoreGui
+
+    local label = Instance.new("TextLabel")
+    label.Name = "ChestLabel"
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "Chest\n0 studs"
+    label.TextColor3 = Color3.fromRGB(255, 220, 80)
+    label.TextStrokeTransparency = 0
+    label.TextSize = 16
+    label.Font = Enum.Font.GothamBold
+    label.Parent = billboard
+
+    ChestESPs[prompt] = {
+        Billboard = billboard,
+        Label = label,
+        Adornee = adornee
+    }
+end
+
+local function refreshChestPromptCache()
+    ChestPromptCache = {}
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and isOpenChestPrompt(obj) then
+            table.insert(ChestPromptCache, obj)
+        end
+    end
+
+    LastChestPromptScan = tick()
+end
+
+local function updateChestESP()
+    if tick() - LastChestPromptScan >= ChestPromptScanInterval then
+        refreshChestPromptCache()
+    end
+
+    for _, obj in ipairs(ChestPromptCache) do
+        if obj and obj.Parent and isOpenChestPrompt(obj) then
+            local adornee = getAdorneeFromPrompt(obj)
+
+            if adornee then
+                local distance = getDistanceFromPlayer(adornee)
+
+                if distance <= ChestESPMaxStud then
+                    createChestESP(obj)
+                end
+            end
+        end
+    end
+
+    for prompt, data in pairs(ChestESPs) do
+        local remove = false
+
+        if not prompt or not prompt.Parent or not isOpenChestPrompt(prompt) then
+            remove = true
+        elseif not data.Adornee or not data.Adornee.Parent then
+            remove = true
+        else
+            local distance = getDistanceFromPlayer(data.Adornee)
+
+            if distance > ChestESPMaxStud then
+                data.Billboard.Enabled = false
+            else
+                data.Billboard.Enabled = true
+                data.Label.Text = "Chest\n" .. tostring(math.floor(distance)) .. " studs"
+            end
+        end
+
+        if remove then
+            if data.Billboard then
+                data.Billboard:Destroy()
+            end
+            ChestESPs[prompt] = nil
+        end
+    end
+end
+
+local function startChestESP()
+    ChestESPEnabled = true
+    updateChestESP()
+
+    if ChestConnection then
+        ChestConnection:Disconnect()
+        ChestConnection = nil
+    end
+
+    task.spawn(function()
+        while ChestESPEnabled do
+            updateChestESP()
+            task.wait(0.45)
+        end
+    end)
+end
+
+local function stopChestESP()
+    ChestESPEnabled = false
+
+    if ChestConnection then
+        ChestConnection:Disconnect()
+        ChestConnection = nil
+    end
+
+    for _, data in pairs(ChestESPs) do
+        if data.Billboard then
+            data.Billboard:Destroy()
+        end
+    end
+
+    ChestESPs = {}
+end
+
+
+-- Combat / Auto Kill Closest
+local AutoKillEnabled = false
+local AutoKillRadius = 7
+local AutoKillConnection = nil
+local LastCombatSwing = 0
+local LastCombatTargetScan = 0
+local LastCombatEquip = 0
+local CurrentCombatTargetRoot = nil
+local FollowBelowDistanceNPC = 10
+local NoTargetUpStud = 10
+local HadCombatTarget = false
+local CombatToolNames = {"Hatchet", "Machete"}
+
+local function findCombatTool()
+    local character = player.Character
+    local backpack = player:FindFirstChildOfClass("Backpack")
+
+    for _, toolName in ipairs(CombatToolNames) do
+        if character then
+            local tool = character:FindFirstChild(toolName)
+            if tool and tool:IsA("Tool") then
+                return tool
+            end
+        end
+
+        if backpack then
+            local tool = backpack:FindFirstChild(toolName)
+            if tool and tool:IsA("Tool") then
+                return tool
+            end
+        end
+    end
+
+    return nil
+end
+
+local function equipCombatTool()
+    local character = player.Character
+    local humanoid = getHumanoid()
+    local tool = findCombatTool()
+
+    if humanoid and tool and tool.Parent ~= character then
+        pcall(function()
+            humanoid:EquipTool(tool)
+        end)
+    end
+
+    return findCombatTool()
+end
+
+local function getNPCRoot(model)
+    if not model then return nil end
+    return model:FindFirstChild("HumanoidRootPart")
+        or model:FindFirstChild("Torso")
+        or model:FindFirstChild("UpperTorso")
+        or model.PrimaryPart
+end
+
+local function isAnchoredNPC(npc, npcRoot)
+    if npcRoot and npcRoot:IsA("BasePart") and npcRoot.Anchored then
+        return true
+    end
+
+    if npc and npc.PrimaryPart and npc.PrimaryPart:IsA("BasePart") and npc.PrimaryPart.Anchored then
+        return true
+    end
+
+    local mainParts = {
+        "HumanoidRootPart",
+        "Torso",
+        "UpperTorso",
+        "LowerTorso"
+    }
+
+    for _, partName in ipairs(mainParts) do
+        local part = npc and npc:FindFirstChild(partName)
+        if part and part:IsA("BasePart") and part.Anchored then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function getClosestNPCInRadius(radius)
+    local root = getRoot()
+    if not root then return nil, nil end
+
+    local closestNPC = nil
+    local closestRoot = nil
+    local closestDistance = radius
+
+    for _, npc in ipairs(getAllNPCs()) do
+        local humanoid = npc:FindFirstChildOfClass("Humanoid")
+        local npcRoot = getNPCRoot(npc)
+
+        -- NPC yang Anchored tidak ditarget supaya auto kill tidak nyangkut/lag
+        if humanoid and humanoid.Health > 0 and npcRoot and not isAnchoredNPC(npc, npcRoot) then
+            local distance = (npcRoot.Position - root.Position).Magnitude
+
+            if distance <= closestDistance then
+                closestDistance = distance
+                closestNPC = npc
+                closestRoot = npcRoot
+            end
+        end
+    end
+
+    return closestNPC, closestRoot
+end
+
+local function followBelowNPC(npcRoot)
+    local root = getRoot()
+    if not root or not npcRoot then return end
+
+    local belowPosition = npcRoot.Position - Vector3.new(0, FollowBelowDistanceNPC, 0)
+
+    root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    root.CFrame = CFrame.new(belowPosition, npcRoot.Position)
+end
+
+local function teleportUpWhenNoTarget()
+    local root = getRoot()
+    if not root then return end
+
+    root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    root.CFrame = root.CFrame + Vector3.new(0, NoTargetUpStud, 0)
+end
+
+local function startAutoKillClosest()
+    AutoKillEnabled = true
+
+    if AutoKillConnection then
+        AutoKillConnection:Disconnect()
+        AutoKillConnection = nil
+    end
+
+    AutoKillConnection = RunService.Heartbeat:Connect(function()
+        if not AutoKillEnabled then return end
+
+        local now = tick()
+
+        -- scan target tidak setiap frame supaya tidak ngelag
+        if now - LastCombatTargetScan >= 0.25 then
+            LastCombatTargetScan = now
+            local _, npcRoot = getClosestNPCInRadius(AutoKillRadius)
+            CurrentCombatTargetRoot = npcRoot
+        end
+
+        if CurrentCombatTargetRoot and CurrentCombatTargetRoot.Parent then
+            HadCombatTarget = true
+            followBelowNPC(CurrentCombatTargetRoot)
+
+            local tool = findCombatTool()
+
+            -- equip tool cukup beberapa kali per detik, bukan tiap frame
+            if now - LastCombatEquip >= 0.6 then
+                LastCombatEquip = now
+                tool = equipCombatTool()
+            end
+
+            -- attack rate dibatasi biar FPS tidak drop
+            if tool and now - LastCombatSwing >= 0.35 then
+                LastCombatSwing = now
+                pcall(function()
+                    tool:Activate()
+                end)
+            end
+        else
+            -- kalau sebelumnya ada target lalu sekarang sudah tidak ada NPC terdeteksi, naik 10 stud sekali saja
+            if HadCombatTarget then
+                HadCombatTarget = false
+                teleportUpWhenNoTarget()
+            end
+        end
+    end)
+end
+
+local function stopAutoKillClosest()
+    AutoKillEnabled = false
+    HadCombatTarget = false
+
+    if AutoKillConnection then
+        AutoKillConnection:Disconnect()
+        AutoKillConnection = nil
+    end
+end
+
+-- Skeleton ESP
+local SkeletonESPEnabled = false
+local SkeletonConnection = nil
+local SkeletonLines = {}
+
+local function newLine()
+    if not Drawing then
+        return nil
+    end
+
+    local line = Drawing.new("Line")
+    line.Visible = false
+    line.Thickness = 2
+    line.Transparency = 1
+    line.Color = Color3.fromRGB(255, 255, 255)
+    return line
+end
+
+local function clearSkeletonLines()
+    for _, line in ipairs(SkeletonLines) do
+        pcall(function()
+            line:Remove()
+        end)
+    end
+    SkeletonLines = {}
+end
+
+local function getLine(index)
+    if not SkeletonLines[index] then
+        SkeletonLines[index] = newLine()
+    end
+    return SkeletonLines[index]
+end
+
+local function getSkeletonPairs(model)
+    local head = getPart(model, "Head")
+    local upperTorso = getPart(model, "UpperTorso", "Torso")
+    local lowerTorso = getPart(model, "LowerTorso", "Torso")
+
+    local leftUpperArm = getPart(model, "LeftUpperArm", "Left Arm")
+    local leftLowerArm = getPart(model, "LeftLowerArm", "Left Arm")
+    local leftHand = getPart(model, "LeftHand", "Left Arm")
+
+    local rightUpperArm = getPart(model, "RightUpperArm", "Right Arm")
+    local rightLowerArm = getPart(model, "RightLowerArm", "Right Arm")
+    local rightHand = getPart(model, "RightHand", "Right Arm")
+
+    local leftUpperLeg = getPart(model, "LeftUpperLeg", "Left Leg")
+    local leftLowerLeg = getPart(model, "LeftLowerLeg", "Left Leg")
+    local leftFoot = getPart(model, "LeftFoot", "Left Leg")
+
+    local rightUpperLeg = getPart(model, "RightUpperLeg", "Right Leg")
+    local rightLowerLeg = getPart(model, "RightLowerLeg", "Right Leg")
+    local rightFoot = getPart(model, "RightFoot", "Right Leg")
+
+    return {
+        {head, upperTorso},
+        {upperTorso, lowerTorso},
+
+        {upperTorso, leftUpperArm},
+        {leftUpperArm, leftLowerArm},
+        {leftLowerArm, leftHand},
+
+        {upperTorso, rightUpperArm},
+        {rightUpperArm, rightLowerArm},
+        {rightLowerArm, rightHand},
+
+        {lowerTorso, leftUpperLeg},
+        {leftUpperLeg, leftLowerLeg},
+        {leftLowerLeg, leftFoot},
+
+        {lowerTorso, rightUpperLeg},
+        {rightUpperLeg, rightLowerLeg},
+        {rightLowerLeg, rightFoot}
+    }
+end
+
+local function startSkeletonESP()
+    SkeletonESPEnabled = true
+
+    if not Drawing then
+        skeletonButton.Text = "Skeleton: No Drawing"
+        task.wait(1)
+        skeletonButton.Text = "Skeleton ESP: OFF"
+        SkeletonESPEnabled = false
+        return
+    end
+
+    if SkeletonConnection then
+        SkeletonConnection:Disconnect()
+        SkeletonConnection = nil
+    end
+
+    local lastSkeletonUpdate = 0
+    local skeletonUpdateInterval = 1 / 15
+    local skeletonMaxNPC = 8
+    local skeletonMaxDistance = 250
+
+    SkeletonConnection = RunService.RenderStepped:Connect(function()
+        if tick() - lastSkeletonUpdate < skeletonUpdateInterval then
+            return
+        end
+        lastSkeletonUpdate = tick()
+
+        local cam = Workspace.CurrentCamera
+        local root = getRoot()
+        if not cam or not root then return end
+
+        local lineIndex = 1
+        local npcCount = 0
+
+        for _, npc in ipairs(getAllNPCs()) do
+            if npcCount >= skeletonMaxNPC then
+                break
+            end
+
+            local humanoid = npc:FindFirstChildOfClass("Humanoid")
+            local npcRoot = getNPCRoot(npc)
+
+            if humanoid and humanoid.Health > 0 and npcRoot and (npcRoot.Position - root.Position).Magnitude <= skeletonMaxDistance then
+                npcCount = npcCount + 1
+
+                for _, pairData in ipairs(getSkeletonPairs(npc)) do
+                    local partA = pairData[1]
+                    local partB = pairData[2]
+
+                    if partA and partB then
+                        local posA, onScreenA = cam:WorldToViewportPoint(partA.Position)
+                        local posB, onScreenB = cam:WorldToViewportPoint(partB.Position)
+
+                        local line = getLine(lineIndex)
+
+                        if line then
+                            if onScreenA and onScreenB then
+                                line.From = Vector2.new(posA.X, posA.Y)
+                                line.To = Vector2.new(posB.X, posB.Y)
+                                line.Visible = true
+                            else
+                                line.Visible = false
+                            end
+                        end
+
+                        lineIndex = lineIndex + 1
+                    end
+                end
+            end
+        end
+
+        for i = lineIndex, #SkeletonLines do
+            if SkeletonLines[i] then
+                SkeletonLines[i].Visible = false
+            end
+        end
+    end)
+end
+
+local function stopSkeletonESP()
+    SkeletonESPEnabled = false
+
+    if SkeletonConnection then
+        SkeletonConnection:Disconnect()
+        SkeletonConnection = nil
+    end
+
+    clearSkeletonLines()
+end
+
+
+-- Teleport
+local RaftCFrame = CFrame.new(257, 154, -256)
+
+local function flashButtonText(button, text, resetText)
+    local oldText = resetText or button.Text
+    button.Text = text
+    task.delay(1, function()
+        if button and button.Parent then
+            button.Text = oldText
+        end
+    end)
+end
+
+local function teleportRootToCFrame(targetCFrame)
+    local root = getRoot()
+    if not root then
+        return false
+    end
+
+    root.CFrame = targetCFrame
+    return true
+end
+
+local function getClosestChestPrompt()
+    local root = getRoot()
+    if not root then
+        return nil, nil, math.huge
+    end
+
+    local closestPrompt = nil
+    local closestAdornee = nil
+    local closestDistance = math.huge
+
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and isOpenChestPrompt(obj) then
+            local adornee = getAdorneeFromPrompt(obj)
+            if adornee then
+                local distance = (adornee.Position - root.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestPrompt = obj
+                    closestAdornee = adornee
+                end
+            end
+        end
+    end
+
+    return closestPrompt, closestAdornee, closestDistance
+end
+
+local function tpToClosestChest()
+    local _, chestPart = getClosestChestPrompt()
+    if not chestPart then
+        return false
+    end
+
+    return teleportRootToCFrame(CFrame.new(chestPart.Position + Vector3.new(0, 3, 0)))
+end
+
+local function tpToRaft()
+    return teleportRootToCFrame(RaftCFrame)
+end
+
+local DOUBLOONS_CHEST_MESH_ID = "91191648141105"
+local DoubloonsChestCache = {}
+local DoubloonsChestVisited = {}
+local DoubloonsCacheReady = false
+local DoubloonsLastFullScan = 0
+local DoubloonsFullScanCooldown = 8
+
+local function normalizeMeshId(id)
+    id = tostring(id or "")
+    return id:match("%d+") or id
+end
+
+local function getPartFromMeshObject(obj)
+    if obj:IsA("MeshPart") then
+        return obj
+    end
+
+    if obj:IsA("SpecialMesh") and obj.Parent and obj.Parent:IsA("BasePart") then
+        return obj.Parent
+    end
+
+    return nil
+end
+
+local function isDoubloonsMeshObject(obj)
+    local meshId = nil
+
+    if obj:IsA("MeshPart") then
+        meshId = obj.MeshId
+    elseif obj:IsA("SpecialMesh") then
+        meshId = obj.MeshId
+    end
+
+    return meshId and normalizeMeshId(meshId) == DOUBLOONS_CHEST_MESH_ID
+end
+
+local function addDoubloonsChestToCache(obj)
+    if not isDoubloonsMeshObject(obj) then
+        return
+    end
+
+    local part = getPartFromMeshObject(obj)
+    if not part then
+        return
+    end
+
+    for _, cachedPart in ipairs(DoubloonsChestCache) do
+        if cachedPart == part then
+            return
+        end
+    end
+
+    table.insert(DoubloonsChestCache, part)
+end
+
+local function refreshDoubloonsChestCache(force)
+    if not force and tick() - DoubloonsLastFullScan < DoubloonsFullScanCooldown then
+        return
+    end
+
+    DoubloonsLastFullScan = tick()
+    DoubloonsChestCache = {}
+
+    -- Pakai Workspace saja biar tidak scan semua CoreGui/ReplicatedStorage dan mengurangi lag.
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        addDoubloonsChestToCache(obj)
+    end
+
+    DoubloonsCacheReady = true
+end
+
+Workspace.DescendantAdded:Connect(function(obj)
+    task.defer(function()
+        addDoubloonsChestToCache(obj)
+    end)
+end)
+
+-- Scan awal dibuat di background supaya tidak nge-freeze saat tombol pertama ditekan.
+task.spawn(function()
+    task.wait(1)
+    refreshDoubloonsChestCache(true)
+end)
+
+local function getVisitedKey(part)
+    if not part then
+        return nil
+    end
+
+    -- Key pakai posisi + nama supaya chest yang sudah pernah di-TP tidak dipilih lagi.
+    local pos = part.Position
+    return part:GetFullName() .. "|" .. math.floor(pos.X) .. "," .. math.floor(pos.Y) .. "," .. math.floor(pos.Z)
+end
+
+local function tpToDoubloonsChest()
+    local root = getRoot()
+    if not root then
+        return false, "No Character"
+    end
+
+    if not DoubloonsCacheReady then
+        refreshDoubloonsChestCache(true)
+    else
+        refreshDoubloonsChestCache(false)
+    end
+
+    local nearestPart = nil
+    local nearestDistance = math.huge
+
+    for i = #DoubloonsChestCache, 1, -1 do
+        local part = DoubloonsChestCache[i]
+
+        if not part or not part.Parent then
+            table.remove(DoubloonsChestCache, i)
+        else
+            local visitedKey = getVisitedKey(part)
+
+            if not DoubloonsChestVisited[visitedKey] then
+                local distance = (root.Position - part.Position).Magnitude
+
+                if distance < nearestDistance then
+                    nearestDistance = distance
+                    nearestPart = part
+                end
+            end
+        end
+    end
+
+    if nearestPart then
+        local visitedKey = getVisitedKey(nearestPart)
+        if visitedKey then
+            DoubloonsChestVisited[visitedKey] = true
+        end
+
+        local humanoid = getHumanoid()
+        if humanoid then
+            humanoid.Sit = false
+            humanoid.PlatformStand = false
+        end
+
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        root.CFrame = CFrame.new(nearestPart.Position + Vector3.new(0, 6, 0))
+
+        print("Teleport ke Doubloons Chest:", nearestPart:GetFullName())
+        return true, "Teleported"
+    end
+
+    warn("Doubloons Chest baru tidak ditemukan / semua sudah pernah di-TP")
+    return false, "All Visited"
+end
+
+-- Input
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if input.KeyCode == Enum.KeyCode.W then
+        flyingKeys.W = true
+    elseif input.KeyCode == Enum.KeyCode.A then
+        flyingKeys.A = true
+    elseif input.KeyCode == Enum.KeyCode.S then
+        flyingKeys.S = true
+    elseif input.KeyCode == Enum.KeyCode.D then
+        flyingKeys.D = true
+    elseif input.KeyCode == Enum.KeyCode.Space then
+        flyingKeys.Space = true
+    elseif input.KeyCode == Enum.KeyCode.LeftControl then
+        flyingKeys.LeftControl = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then
+        flyingKeys.W = false
+    elseif input.KeyCode == Enum.KeyCode.A then
+        flyingKeys.A = false
+    elseif input.KeyCode == Enum.KeyCode.S then
+        flyingKeys.S = false
+    elseif input.KeyCode == Enum.KeyCode.D then
+        flyingKeys.D = false
+    elseif input.KeyCode == Enum.KeyCode.Space then
+        flyingKeys.Space = false
+    elseif input.KeyCode == Enum.KeyCode.LeftControl then
+        flyingKeys.LeftControl = false
+    end
+end)
+
+player.CharacterAdded:Connect(function()
+    if FlyEnabled then
+        task.wait(1)
+        stopFly()
+        task.wait(0.2)
+        startFly()
+    end
+end)
+
+-- Fly Slider
+local draggingSlider = false
+
+local function updateSlider(inputX)
+    local sliderPosition = sliderBack.AbsolutePosition.X
+    local sliderSize = sliderBack.AbsoluteSize.X
+    local percent = math.clamp((inputX - sliderPosition) / sliderSize, 0, 1)
+
+    FlySpeed = math.floor(percent * 200)
+    if FlySpeed < 1 then
+        FlySpeed = 1
+    end
+
+    sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    sliderKnob.Position = UDim2.new(percent, -8, 0.5, -8)
+    speedText.Text = "Fly Speed: " .. tostring(FlySpeed)
+end
+
+sliderKnob.MouseButton1Down:Connect(function()
+    draggingSlider = true
+end)
+
+sliderBack.InputBegan:Connect(function(input)
+    if isPressInput(input) then
+        draggingSlider = true
+        updateSlider(input.Position.X)
+    end
+end)
+
+-- Chest Stud Slider
+local draggingChestSlider = false
+local draggingCombatSlider = false
+
+local function updateChestSlider(inputX)
+    local sliderPosition = chestSliderBack.AbsolutePosition.X
+    local sliderSize = chestSliderBack.AbsoluteSize.X
+    local percent = math.clamp((inputX - sliderPosition) / sliderSize, 0, 1)
+
+    ChestESPMaxStud = math.floor(percent * 1000)
+    if ChestESPMaxStud < 1 then
+        ChestESPMaxStud = 1
+    end
+
+    chestSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    chestSliderKnob.Position = UDim2.new(percent, -8, 0.5, -8)
+    chestStudText.Text = "Chest Stud: " .. tostring(ChestESPMaxStud)
+end
+
+chestSliderKnob.MouseButton1Down:Connect(function()
+    draggingChestSlider = true
+end)
+
+chestSliderBack.InputBegan:Connect(function(input)
+    if isPressInput(input) then
+        draggingChestSlider = true
+        updateChestSlider(input.Position.X)
+    end
+end)
+
+
+local function updateCombatSlider(inputX)
+    local sliderPosition = combatSliderBack.AbsolutePosition.X
+    local sliderSize = combatSliderBack.AbsoluteSize.X
+    local percent = math.clamp((inputX - sliderPosition) / sliderSize, 0, 1)
+
+    AutoKillRadius = math.floor(percent * 500)
+    if AutoKillRadius < 1 then
+        AutoKillRadius = 1
+    end
+
+    combatSliderFill.Size = UDim2.new(percent, 0, 1, 0)
+    combatSliderKnob.Position = UDim2.new(percent, -8, 0.5, -8)
+    combatRadiusText.Text = "Kill Radius: " .. tostring(AutoKillRadius)
+end
+
+combatSliderKnob.MouseButton1Down:Connect(function()
+    draggingCombatSlider = true
+end)
+
+combatSliderBack.InputBegan:Connect(function(input)
+    if isPressInput(input) then
+        draggingCombatSlider = true
+        updateCombatSlider(input.Position.X)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if isPressInput(input) then
+        draggingSlider = false
+        draggingChestSlider = false
+        draggingCombatSlider = false
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isMoveInput(input) then
+        if draggingSlider then
+            updateSlider(input.Position.X)
+        end
+
+        if draggingChestSlider then
+            updateChestSlider(input.Position.X)
+        end
+
+        if draggingCombatSlider then
+            updateCombatSlider(input.Position.X)
+        end
+    end
+end)
+
+-- Full Bright + No Fog
+local FullBrightEnabled = false
+local NoFogEnabled = false
+
+local SavedLighting = {
+    Brightness = Lighting.Brightness,
+    ClockTime = Lighting.ClockTime,
+    FogEnd = Lighting.FogEnd,
+    FogStart = Lighting.FogStart,
+    GlobalShadows = Lighting.GlobalShadows,
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient
+}
+
+local LightingConnection = nil
+
+local function saveLightingOnce()
+    SavedLighting.Brightness = Lighting.Brightness
+    SavedLighting.ClockTime = Lighting.ClockTime
+    SavedLighting.FogEnd = Lighting.FogEnd
+    SavedLighting.FogStart = Lighting.FogStart
+    SavedLighting.GlobalShadows = Lighting.GlobalShadows
+    SavedLighting.Ambient = Lighting.Ambient
+    SavedLighting.OutdoorAmbient = Lighting.OutdoorAmbient
+end
+
+local function applyVisualLighting()
+    if FullBrightEnabled then
+        Lighting.Brightness = 3
+        Lighting.ClockTime = 14
+        Lighting.GlobalShadows = false
+        Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+        Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+    end
+
+    if NoFogEnabled then
+        Lighting.FogStart = 0
+        Lighting.FogEnd = 100000
+    end
+end
+
+local function startLightingLoop()
+    if LightingConnection then
+        LightingConnection:Disconnect()
+        LightingConnection = nil
+    end
+
+    LightingConnection = RunService.RenderStepped:Connect(function()
+        if FullBrightEnabled or NoFogEnabled then
+            applyVisualLighting()
+        end
+    end)
+end
+
+local function stopLightingLoopIfUnused()
+    if not FullBrightEnabled and not NoFogEnabled then
+        if LightingConnection then
+            LightingConnection:Disconnect()
+            LightingConnection = nil
+        end
+    end
+end
+
+local function enableFullBright()
+    if not FullBrightEnabled and not NoFogEnabled then
+        saveLightingOnce()
+    end
+
+    FullBrightEnabled = true
+    applyVisualLighting()
+    startLightingLoop()
+end
+
+local function disableFullBright()
+    FullBrightEnabled = false
+
+    Lighting.Brightness = SavedLighting.Brightness
+    Lighting.ClockTime = SavedLighting.ClockTime
+    Lighting.GlobalShadows = SavedLighting.GlobalShadows
+    Lighting.Ambient = SavedLighting.Ambient
+    Lighting.OutdoorAmbient = SavedLighting.OutdoorAmbient
+
+    if NoFogEnabled then
+        applyVisualLighting()
+    end
+
+    stopLightingLoopIfUnused()
+end
+
+local function enableNoFog()
+    if not FullBrightEnabled and not NoFogEnabled then
+        saveLightingOnce()
+    end
+
+    NoFogEnabled = true
+    applyVisualLighting()
+    startLightingLoop()
+end
+
+local function disableNoFog()
+    NoFogEnabled = false
+
+    Lighting.FogStart = SavedLighting.FogStart
+    Lighting.FogEnd = SavedLighting.FogEnd
+
+    if FullBrightEnabled then
+        applyVisualLighting()
+    end
+
+    stopLightingLoopIfUnused()
+end
+
+-- Buttons
+noclipButton.MouseButton1Click:Connect(function()
+    if not NoclipEnabled then
+        noclip()
+        setButtonState(noclipButton, "Noclip: ON", true)
+    else
+        clip()
+        setButtonState(noclipButton, "Noclip: OFF", false)
+    end
+end)
+
+promptButton.MouseButton1Click:Connect(function()
+    if not PromptEnabled then
+        enableInstantPrompt()
+        setButtonState(promptButton, "Instant Interact: ON", true)
+    else
+        disableInstantPrompt()
+        setButtonState(promptButton, "Instant Interact: OFF", false)
+    end
+end)
+
+flyButton.MouseButton1Click:Connect(function()
+    if not FlyEnabled then
+        startFly()
+        setButtonState(flyButton, "Fly: ON", true)
+    else
+        stopFly()
+        setButtonState(flyButton, "Fly: OFF", false)
+    end
+end)
+
+skeletonButton.MouseButton1Click:Connect(function()
+    if not SkeletonESPEnabled then
+        startSkeletonESP()
+        if SkeletonESPEnabled then
+            setButtonState(skeletonButton, "Skeleton ESP: ON", true)
+        end
+    else
+        stopSkeletonESP()
+        setButtonState(skeletonButton, "Skeleton ESP: OFF", false)
+    end
+end)
+
+healthButton.MouseButton1Click:Connect(function()
+    if not HealthESPEnabled then
+        HealthESPEnabled = true
+        startBillboardLoop()
+        setButtonState(healthButton, "Health ESP: ON", true)
+    else
+        HealthESPEnabled = false
+        stopBillboardLoopIfUnused()
+        setButtonState(healthButton, "Health ESP: OFF", false)
+    end
+end)
+
+nameButton.MouseButton1Click:Connect(function()
+    if not NameESPEnabled then
+        NameESPEnabled = true
+        startBillboardLoop()
+        setButtonState(nameButton, "Name ESP: ON", true)
+    else
+        NameESPEnabled = false
+        stopBillboardLoopIfUnused()
+        setButtonState(nameButton, "Name ESP: OFF", false)
+    end
+end)
+
+fullBrightButton.MouseButton1Click:Connect(function()
+    if not FullBrightEnabled then
+        enableFullBright()
+        setButtonState(fullBrightButton, "Full Bright: ON", true)
+    else
+        disableFullBright()
+        setButtonState(fullBrightButton, "Full Bright: OFF", false)
+    end
+end)
+
+noFogButton.MouseButton1Click:Connect(function()
+    if not NoFogEnabled then
+        enableNoFog()
+        setButtonState(noFogButton, "No Fog: ON", true)
+    else
+        disableNoFog()
+        setButtonState(noFogButton, "No Fog: OFF", false)
+    end
+end)
+
+chestButton.MouseButton1Click:Connect(function()
+    if not ChestESPEnabled then
+        startChestESP()
+        setButtonState(chestButton, "Chest ESP: ON", true)
+    else
+        stopChestESP()
+        setButtonState(chestButton, "Chest ESP: OFF", false)
+    end
+end)
+
+
+
+tpChestButton.MouseButton1Click:Connect(function()
+    if tpToClosestChest() then
+        flashButtonText(tpChestButton, "Teleported", "TP to Chest")
+    else
+        flashButtonText(tpChestButton, "No Chest Found", "TP to Chest")
+    end
+end)
+
+tpRaftButton.MouseButton1Click:Connect(function()
+    if tpToRaft() then
+        flashButtonText(tpRaftButton, "Teleported", "TP to Raft")
+    else
+        flashButtonText(tpRaftButton, "No Character", "TP to Raft")
+    end
+end)
+
+doubloonsChestButton.MouseButton1Click:Connect(function()
+    local success, message = tpToDoubloonsChest()
+    if success then
+        flashButtonText(doubloonsChestButton, "Teleported", "Doubloons Chest")
+    else
+        flashButtonText(doubloonsChestButton, message or "Not Found", "Doubloons Chest")
+    end
+end)
+
+autoKillButton.MouseButton1Click:Connect(function()
+    if not AutoKillEnabled then
+        startAutoKillClosest()
+        setButtonState(autoKillButton, "Auto Kill Closest: ON", true)
+    else
+        stopAutoKillClosest()
+        setButtonState(autoKillButton, "Auto Kill Closest: OFF", false)
+    end
+end)
+
+openButton.MouseButton1Click:Connect(function()
+    homeFrame.Visible = false
+    miniOpenButton.Visible = false
+    mainFrame.Visible = true
+end)
+
+miniOpenButton.MouseButton1Click:Connect(function()
+    if miniMoved then
+        miniMoved = false
+        return
+    end
+
+    homeFrame.Visible = false
+    miniOpenButton.Visible = false
+    mainFrame.Visible = true
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    homeFrame.Visible = false
+    miniOpenButton.Visible = true
+end)
